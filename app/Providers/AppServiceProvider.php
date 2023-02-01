@@ -10,43 +10,34 @@ use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Events\QueryExecuted;
 
+use function Clue\StreamFilter\fun;
+
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     *
-     * @return void
-     */
-    public function register()
+    public function boot(): void
     {
-        //
-    }
+        Model::shouldBeStrict(!app()->isProduction());
 
-    /**
-     * Bootstrap any application services.
-     *
-     * @return void
-     */
-    public function boot()
-    {
-        Model::preventLazyLoading(!app()->isProduction());
-        Model::preventSilentlyDiscardingAttributes(!app()->isProduction());
+        if (app()->isProduction()) {
+            DB::listen(function ($query) {
+                if ($query->time > 100) {
+                    logger()
+                        ->channel('telegram')
+                        ->debug('query longer than 1s:' .$query->toSql(), $query->bindings);
+                }
+            });
 
-        DB::whenQueryingForLongerThan(500, function (Connection $connection, QueryExecuted $event) {
-            logger()
-                ->channel('telegram')
-                ->debug('whenQueryingForLongerThan:' . $connection->query()->toSql());
-        });
+            $kernel = app(Kernel::class);
 
-        $kernel = app(Kernel::class);
+            $kernel->whenRequestlifecycleIsLongerThan(
+                CarbonInterval::seconds(4),
+                function () {
+                    logger()
+                        ->channel('telegram')
+                        ->debug('whenRequestlifecycleIsLongerThan:' . request()->url());
+                }
+            );
+        }
 
-        $kernel->whenRequestlifecycleIsLongerThan(
-            CarbonInterval::seconds(4),
-            function () {
-                logger()
-                    ->channel('telegram')
-                    ->debug('whenRequestlifecycleIsLongerThan:' . request()->url());
-            }
-        );
     }
 }
