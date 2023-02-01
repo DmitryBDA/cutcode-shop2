@@ -14,6 +14,9 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/', function () {
+    \App\Models\Brand::create([
+        'title' => 'словап-9',
+    ]);
     logger()->channel('telegram')->debug('hello');
     return view('welcome');
 });
